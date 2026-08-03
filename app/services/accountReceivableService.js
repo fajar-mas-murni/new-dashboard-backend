@@ -4,7 +4,7 @@ const { connectDB } = require("../configs/databaseConfig.js");
 function accountReceivableService() {
   const cache = new Map();
 
-  async function getAllData(startDate, endDate) {
+  async function getUnpaidData(startDate, endDate) {
     const cacheKey = `${startDate || ''}_${endDate || ''}`;
 
     if (!cache.has(cacheKey)) {
@@ -36,7 +36,7 @@ function accountReceivableService() {
   }
 
   async function getArSummary(startDate, endDate) {
-    const data = await getAllData(startDate, endDate) || [];
+    const data = await getUnpaidData(startDate, endDate) || [];
     const result = {
       "summary": [],
       "top-10-unpaid-customers": [],
@@ -59,7 +59,7 @@ function accountReceivableService() {
     result["summary-unpaid"] = getUnpaidInvoices(data);
 
     result["paid-invoices-summary"] = await getPaidInvoicesSummary();
-    result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly(data);
+    result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly();
 
     return result;
   }
@@ -174,8 +174,14 @@ function accountReceivableService() {
     }));
   }
 
-  function queryPaidLast12Month(customer = null) {
-    let ext = `and format(ap.AdjDate, 'yyyyMM') >= format(dateadd(month, -7, getdate()), 'yyyyMM')`;
+  function queryPaid(startDate = null, endDate = null, customer = null) {
+    let ext = "";
+
+    if (startDate && endDate) {
+      ext += `and ap.AdjDate between '${startDate}' and '${endDate}'`;
+    } else {
+      ext += "and format(ap.AdjDate, 'yyyyMM') >= format(dateadd(month, -7, getdate()), 'yyyyMM')";
+    }
 
     if (customer) {
       ext = `and aa.AdjdCustomerID = ${customer}`;
@@ -200,7 +206,7 @@ function accountReceivableService() {
   }
 
   async function sumLastPai12Month() {
-    let query = queryPaidLast12Month();
+    let query = queryPaid();
     query = `
       select AcctName, sum(Last12Month) as Last12Month
       from (${query}) as summary
@@ -215,7 +221,7 @@ function accountReceivableService() {
 
   async function getPaidInvoicesSummary() {
     try {
-      const rawQuery = queryPaidLast12Month();
+      const rawQuery = queryPaid();
       const query = `
         select AcctName as customer, Branch as branch, 
           sum(case when format(AdjDate, 'yyyyMM') = format(getdate(), 'yyyyMM') then OrigDocAmt else 0 end) as currentMonth, 
@@ -224,9 +230,10 @@ function accountReceivableService() {
         from (${rawQuery}) as summary
         group by AcctName, Branch
       `;
-      console.log(query);
+
       const pool = await connectDB();
       const request = await pool.request().query(query);
+
       return request.recordset.map(row => ({
         customer: row.customer || "Unknown",
         branch: String(row.branch || "Unknown"),
@@ -235,15 +242,20 @@ function accountReceivableService() {
         last12Month: parseFloat(row.last12Month || 0)
       }));
     } catch (err) {
-      console.error("Error in getPaidInvoicesSummary:", err);
       return [];
     }
   }
 
-  async function getPaidVsUnpaidMonthly(data) {
+  async function getPaidVsUnpaidMonthly() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 11);
+    // because odata parameter take date instead of period, i set the minimum to the lowest day possible which is 01
+    const minPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    const maxPeriod = new Date().toISOString().split('T')[0];
+
     try {
       const pool = await connectDB();
-      const rawQuery = queryPaidLast12Month();
+      const rawQuery = queryPaid(minPeriod, maxPeriod);
 
       const query = `
         select format(AdjDate, 'yyyyMM') as Period, Branch, sum(OrigDocAmt) as Amount
@@ -260,44 +272,37 @@ function accountReceivableService() {
         const period = row.Period;
         const branch = String(row.Branch || "Unknown");
         const key = period + "|" + branch;
+
         if (!monthlyMap.has(key)) {
           monthlyMap.set(key, { period, branch, paid: 0, unpaid: 0 });
         }
+
         monthlyMap.get(key).paid += parseFloat(row.Amount || 0);
       });
 
-      // Calculate min period for last 12 months for Unpaid
-      const d = new Date();
-      d.setMonth(d.getMonth() - 11);
-      const minPeriod = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-
       // Process Unpaid (from OData)
-      data.forEach(dt => {
-        const docDate = dt["Date"];
-        if (!docDate) return;
-        const dateObj = new Date(docDate);
-        if (isNaN(dateObj.getTime())) return;
+      const unpaidData = await getUnpaidData(minPeriod, maxPeriod);
 
+      unpaidData.forEach(ud => {
+        const dateObj = new Date(ud["Date"]);
         const year = dateObj.getFullYear();
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const period = `${year}${month}`;
+        const branch = String(ud["Branch"] || "Unknown");
+        const key = period + "|" + branch;
 
-        if (period >= minPeriod) {
-          const branch = String(dt["Branch"] || "Unknown");
-          const key = period + "|" + branch;
-
-          if (!monthlyMap.has(key)) {
-            monthlyMap.set(key, { period, branch, paid: 0, unpaid: 0 });
-          }
-          monthlyMap.get(key).unpaid += parseFloat(dt["BalanceIDR"] || 0);
+        if (!monthlyMap.has(key)) {
+          monthlyMap.set(key, { period, branch, paid: 0, unpaid: 0 });
         }
+
+        monthlyMap.get(key).unpaid += parseFloat(ud["BalanceIDR"] || 0);
       });
 
       const finalMonthly = Array.from(monthlyMap.values());
       finalMonthly.sort((a, b) => a.period.localeCompare(b.period));
+
       return finalMonthly;
     } catch (err) {
-      console.error("Error in getPaidVsUnpaidMonthly:", err);
       return [];
     }
   }
