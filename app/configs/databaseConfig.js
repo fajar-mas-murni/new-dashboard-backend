@@ -55,8 +55,6 @@ function connectDB() {
     if (!poolPromise) {
         const connectionString = process.env.DATABASE_URL;
 
-        console.log(connectionString, 123);
-
         if (!connectionString) {
             console.error('Error: DATABASE_URL tidak ditemukan di file .env');
             process.exit(1);
