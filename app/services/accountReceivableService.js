@@ -182,7 +182,7 @@ function accountReceivableService() {
     }
 
     const query = `
-      select b.AcctName, aa.AdjdRefNbr, ap.AdjDate, b2.AcctName as Branch, arr.CuryOrigDocAmt
+      select b.AcctName, aa.AdjdRefNbr, ap.AdjDate, b2.AcctName as Branch, arr.OrigDocAmt
       from ARAdjust as aa
       inner join ARInvoice as ai on aa.AdjdRefNbr = ai.RefNbr and aa.CompanyID = ai.CompanyID 
       inner join ARRegister arr on ai.RefNbr = arr.RefNbr and ai.CompanyID = arr.CompanyID 
@@ -218,9 +218,9 @@ function accountReceivableService() {
       const rawQuery = queryPaidLast12Month();
       const query = `
         select AcctName as customer, Branch as branch, 
-          sum(case when format(AdjDate, 'yyyyMM') = format(getdate(), 'yyyyMM') then CuryOrigDocAmt else 0 end) as currentMonth, 
-          sum(case when format(AdjDate, 'yyyyMM') >= format(dateadd(month, -1, getdate()), 'yyyyMM') then CuryOrigDocAmt else 0 end) as lastMonth, 
-          sum(CuryOrigDocAmt) as last12Month
+          sum(case when format(AdjDate, 'yyyyMM') = format(getdate(), 'yyyyMM') then OrigDocAmt else 0 end) as currentMonth, 
+          sum(case when format(AdjDate, 'yyyyMM') >= format(dateadd(month, -1, getdate()), 'yyyyMM') then OrigDocAmt else 0 end) as lastMonth, 
+          sum(OrigDocAmt) as last12Month
         from (${rawQuery}) as summary
         group by AcctName, Branch
       `;
@@ -246,7 +246,7 @@ function accountReceivableService() {
       const rawQuery = queryPaidLast12Month();
 
       const query = `
-        select format(AdjDate, 'yyyyMM') as Period, Branch, sum(CuryOrigDocAmt) as Amount
+        select format(AdjDate, 'yyyyMM') as Period, Branch, sum(OrigDocAmt) as Amount
         from (${rawQuery}) as summary
         group by format(AdjDate, 'yyyyMM'), Branch
       `;
@@ -305,7 +305,7 @@ function accountReceivableService() {
   async function allInvoicesCustomers(year) {
     const query = `
       select b.AcctName as CustomerName, arr.RefNbr, arr.DocDate as Date, 
-        arr.DueDate, arr.CuryID as Currency, sum(arr.CuryOrigDocAmt) as AmountInCurrency, 
+        arr.DueDate, arr.CuryID as Currency, sum(arr.OrigDocAmt) as AmountInCurrency, 
         sum(arr.OrigDocAmt) as AmountInHomeCurrency, sum(arr.DocBal) as AmountDueInHomeCurrency
       from ARRegister as arr
       inner join ARInvoice as ai on arr.RefNbr = ai.RefNbr and arr.CompanyID = ai.CompanyID 
