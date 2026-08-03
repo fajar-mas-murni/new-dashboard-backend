@@ -10,7 +10,7 @@ function accountReceivableService() {
     if (!cache.has(cacheKey)) {
       const promise = (async () => {
         try {
-          const endpoint = "/AR Aged Custom All";
+          const endpoint = "/AR TRADE 180";
           const config = {};
 
           if (startDate && endDate) {
@@ -87,18 +87,18 @@ function accountReceivableService() {
       parseFloat(dt["_130"] || 0) +
       parseFloat(dt["_3160"] || 0) +
       parseFloat(dt["_6090"] || 0) +
-      parseFloat(dt["_90120"] || 0) +
-      parseFloat(dt["over120"] || 0)
+      parseFloat(dt["_90180"] || 0) +
+      parseFloat(dt["over180"] || 0)
     );
     result["overdue-30-plus"] += (
       parseFloat(dt["_3160"] || 0) +
       parseFloat(dt["_6090"] || 0) +
-      parseFloat(dt["_90120"] || 0) +
-      parseFloat(dt["over120"] || 0)
+      parseFloat(dt["_90180"] || 0) +
+      parseFloat(dt["over180"] || 0)
     );
     result["overdue-90-plus"] += (
-      parseFloat(dt["_90120"] || 0) +
-      parseFloat(dt["over120"] || 0)
+      parseFloat(dt["_90180"] || 0) +
+      parseFloat(dt["over180"] || 0)
     );
   }
 
@@ -131,7 +131,8 @@ function accountReceivableService() {
       const val1_30 = parseFloat(dt["_130"] || 0);
       const val31_60 = parseFloat(dt["_3160"] || 0);
       const val61_90 = parseFloat(dt["_6090"] || 0);
-      const val91_over = parseFloat(dt["_90120"] || 0) + parseFloat(dt["over120"] || 0);
+      const val91_180 = parseFloat(dt["_90180"] || 0);
+      const val_over180 = parseFloat(dt["over180"] || 0);
       const balance = parseFloat(dt["BalanceIDR"] || 0);
 
       if (customerMap.has(key)) {
@@ -141,7 +142,8 @@ function accountReceivableService() {
         existing["1-30"] += val1_30;
         existing["31-60"] += val31_60;
         existing["61-90"] += val61_90;
-        existing["91-over"] += val91_over;
+        existing["91-180"] += val91_180;
+        existing["over180"] += val_over180;
         existing.amountDue += balance;
       } else {
         customerMap.set(key, {
@@ -151,7 +153,8 @@ function accountReceivableService() {
           "1-30": val1_30,
           "31-60": val31_60,
           "61-90": val61_90,
-          "91-over": val91_over,
+          "91-180": val91_180,
+          "over180": val_over180,
           amountDue: balance
         });
       }
