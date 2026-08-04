@@ -60,6 +60,7 @@ function accountReceivableService() {
 
     result["paid-invoices-summary"] = await getPaidInvoicesSummary();
     result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly();
+    result["customer-invoices"] = await allInvoicesCustomers(startDate, endDate);
 
     return result;
   }
@@ -307,19 +308,35 @@ function accountReceivableService() {
     }
   }
 
-  async function allInvoicesCustomers(year) {
+  async function allInvoicesCustomers(startDate, endDate) {
     const query = `
       select b.AcctName as CustomerName, arr.RefNbr, arr.DocDate as Date, 
-        arr.DueDate, arr.CuryID as Currency, sum(arr.OrigDocAmt) as AmountInCurrency, 
+        arr.DueDate, arr.CuryID as Currency, sum(arr.CuryOrigDocAmt) as AmountInCurrency, 
         sum(arr.OrigDocAmt) as AmountInHomeCurrency, sum(arr.DocBal) as AmountDueInHomeCurrency
       from ARRegister as arr
       inner join ARInvoice as ai on arr.RefNbr = ai.RefNbr and arr.CompanyID = ai.CompanyID 
       inner join BAccount as b on arr.CustomerID = b.BAccountID
-      where arr.CompanyID = 2 and format(DocDate, 'yyyy') = ${year}
+      where arr.CompanyID = 2 and arr.DocDate between '${startDate}' and '${endDate}'
       group by b.AcctName, arr.RefNbr, arr.DocDate, arr.DueDate, arr.CuryID
     `;
 
-    return query;
+    try {
+      const pool = await connectDB();
+      const request = await pool.request().query(query);
+
+      return request.recordset.map(row => ({
+        customer: row.CustomerName || "Unknown",
+        invoiceNo: row.RefNbr || "",
+        date: row.Date || "",
+        dueDate: row.DueDate || "",
+        currency: row.Currency || "",
+        amountInCurrency: parseFloat(row.AmountInCurrency || 0),
+        amountInHomeCurrency: parseFloat(row.AmountInHomeCurrency || 0),
+        amountDueInHomeCurrency: parseFloat(row.AmountDueInHomeCurrency || 0)
+      }));
+    } catch (err) {
+      return [];
+    }
   }
 
   return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary };
