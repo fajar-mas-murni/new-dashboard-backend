@@ -259,9 +259,9 @@ function accountReceivableService() {
       const rawQuery = queryPaid(minPeriod, maxPeriod);
 
       const query = `
-        select format(AdjDate, 'yyyyMM') as Period, Branch, sum(OrigDocAmt) as Amount
+        select format(AdjDate, 'yyyyMM') as Period, Branch, AcctName as Customer, sum(OrigDocAmt) as Amount
         from (${rawQuery}) as summary
-        group by format(AdjDate, 'yyyyMM'), Branch
+        group by format(AdjDate, 'yyyyMM'), Branch, AcctName
       `;
       const request = await pool.request().query(query);
       const paidData = request.recordset;
@@ -272,10 +272,11 @@ function accountReceivableService() {
       paidData.forEach(row => {
         const period = row.Period;
         const branch = String(row.Branch || "Unknown");
-        const key = period + "|" + branch;
+        const customer = String(row.Customer || "Unknown");
+        const key = period + "|" + branch + "|" + customer;
 
         if (!monthlyMap.has(key)) {
-          monthlyMap.set(key, { period, branch, paid: 0, unpaid: 0 });
+          monthlyMap.set(key, { period, branch, customer, paid: 0, unpaid: 0 });
         }
 
         monthlyMap.get(key).paid += parseFloat(row.Amount || 0);
@@ -290,10 +291,11 @@ function accountReceivableService() {
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const period = `${year}${month}`;
         const branch = String(ud["Branch"] || "Unknown");
-        const key = period + "|" + branch;
+        const customer = String(ud["CustomerName"] || "Unknown");
+        const key = period + "|" + branch + "|" + customer;
 
         if (!monthlyMap.has(key)) {
-          monthlyMap.set(key, { period, branch, paid: 0, unpaid: 0 });
+          monthlyMap.set(key, { period, branch, customer, paid: 0, unpaid: 0 });
         }
 
         monthlyMap.get(key).unpaid += parseFloat(ud["BalanceIDR"] || 0);
