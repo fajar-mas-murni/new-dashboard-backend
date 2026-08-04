@@ -61,6 +61,7 @@ function accountReceivableService() {
     result["paid-invoices-summary"] = await getPaidInvoicesSummary();
     result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly();
     result["customer-invoices"] = await allInvoicesCustomers(startDate, endDate);
+    result["all-umc-this-year"] = await allUmcThisYear();
 
     return result;
   }
@@ -341,7 +342,35 @@ function accountReceivableService() {
     }
   }
 
-  return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary };
+  async function allUmcThisYear() {
+    let query = `
+      select b.AcctName as Customer, ttapr.RefNbr, 
+        CuryTotalWithTaxAmount as AmountInCurrency, 
+	      TotalWithTaxAmount as AmountInHomeCurrency, 
+        ttapr.DueDate, ttapr.CuryID
+      from ttARPrepaymentReq as ttapr
+      inner join BAccount as b on ttapr.CustomerID = b.BAccountID
+      where format(ttapr.DueDate, 'yyyyMM') >= format(dateadd(month, -7, getdate()), 'yyyyMM')
+    `;
+
+    try {
+      const pool = await connectDB();
+      const request = await pool.request().query(query);
+
+      return request.recordset.map(row => ({
+        customer: row.Customer || "Unknown",
+        invoiceNo: row.RefNbr || "",
+        dueDate: row.DueDate || "",
+        currency: row.CuryID || "",
+        amountInCurrency: parseFloat(row.AmountInCurrency || 0),
+        amountInHomeCurrency: parseFloat(row.AmountInHomeCurrency || 0),
+      }));
+    } catch (err) {
+      return [];
+    }
+  }
+
+  return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary, allUmcThisYear };
 }
 
 module.exports = accountReceivableService; 
