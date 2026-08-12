@@ -347,10 +347,10 @@ function accountReceivableService() {
       select b.AcctName as Customer, ttapr.RefNbr, 
         CuryTotalWithTaxAmount as AmountInCurrency, 
 	      TotalWithTaxAmount as AmountInHomeCurrency, 
-        ttapr.DueDate, ttapr.CuryID
+        ttapr.DocDate, ttapr.CuryID
       from ttARPrepaymentReq as ttapr
       inner join BAccount as b on ttapr.CustomerID = b.BAccountID
-      where format(ttapr.DueDate, 'yyyyMM') >= format(dateadd(month, -7, getdate()), 'yyyyMM')
+      where format(ttapr.DocDate, 'yyyyMM') = format(dateadd(month, -7, getdate()), 'yyyyMM')
     `;
 
     try {
@@ -360,7 +360,7 @@ function accountReceivableService() {
       return request.recordset.map(row => ({
         customer: row.Customer || "Unknown",
         invoiceNo: row.RefNbr || "",
-        dueDate: row.DueDate || "",
+        docDate: row.DocDate || "",
         currency: row.CuryID || "",
         amountInCurrency: parseFloat(row.AmountInCurrency || 0),
         amountInHomeCurrency: parseFloat(row.AmountInHomeCurrency || 0),
