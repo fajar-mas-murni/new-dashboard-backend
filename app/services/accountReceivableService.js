@@ -344,13 +344,15 @@ function accountReceivableService() {
 
   async function allUmcThisMonth() {
     let query = `
-      select b.AcctName as Customer, ttapr.RefNbr, 
+      select b.AcctName as Customer, 
+        ttapr.RefNbr, 
         CuryTaxableAmount as AmountInCurrency, 
         TaxableAmount as AmountInHomeCurrency, 
-        ttapr.DocDate, ttapr.CuryID
+        dateadd(day, 7, ttapr.DocDate) as DocDate, 
+        ttapr.CuryID
       from ttARPrepaymentReq as ttapr
       inner join BAccount as b on ttapr.CustomerID = b.BAccountID and ttapr.CompanyID = b.CompanyID
-      where format(ttapr.DocDate, 'yyyyMM') = format(getdate(), 'yyyyMM')
+      where format(dateadd(day, 7, ttapr.DocDate), 'yyyyMM') = format(getdate(), 'yyyyMM')
         and ttapr.CompanyID = 2
     `;
 
