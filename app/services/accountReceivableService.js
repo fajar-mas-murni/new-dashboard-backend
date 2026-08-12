@@ -61,7 +61,7 @@ function accountReceivableService() {
     result["paid-invoices-summary"] = await getPaidInvoicesSummary();
     result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly();
     result["customer-invoices"] = await allInvoicesCustomers(startDate, endDate);
-    result["all-umc-this-year"] = await allUmcThisYear();
+    result["all-umc-this-month"] = await allUmcThisMonth();
 
     return result;
   }
@@ -342,7 +342,7 @@ function accountReceivableService() {
     }
   }
 
-  async function allUmcThisYear() {
+  async function allUmcThisMonth() {
     let query = `
       select b.AcctName as Customer, ttapr.RefNbr, 
         CuryTaxableAmount as AmountInCurrency, 
@@ -371,7 +371,7 @@ function accountReceivableService() {
     }
   }
 
-  return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary, allUmcThisYear };
+  return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary, allUmcThisMonth };
 }
 
 module.exports = accountReceivableService; 
