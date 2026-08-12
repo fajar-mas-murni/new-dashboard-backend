@@ -345,8 +345,8 @@ function accountReceivableService() {
   async function allUmcThisYear() {
     let query = `
       select b.AcctName as Customer, ttapr.RefNbr, 
-        CuryTotalWithTaxAmount as AmountInCurrency, 
-	      TotalWithTaxAmount as AmountInHomeCurrency, 
+        CuryTaxableAmount as AmountInCurrency, 
+        TaxableAmount as AmountInHomeCurrency, 
         ttapr.DocDate, ttapr.CuryID
       from ttARPrepaymentReq as ttapr
       inner join BAccount as b on ttapr.CustomerID = b.BAccountID and ttapr.CompanyID = b.CompanyID
