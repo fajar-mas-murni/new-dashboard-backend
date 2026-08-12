@@ -350,7 +350,7 @@ function accountReceivableService() {
         ttapr.DocDate, ttapr.CuryID
       from ttARPrepaymentReq as ttapr
       inner join BAccount as b on ttapr.CustomerID = b.BAccountID and ttapr.CompanyID = b.CompanyID
-      where format(ttapr.DocDate, 'yyyyMM') = format(dateadd(month, -7, getdate()), 'yyyyMM')
+      where format(ttapr.DocDate, 'yyyyMM') = format(getdate(), 'yyyyMM')
         and ttapr.CompanyID = 2
     `;
 
