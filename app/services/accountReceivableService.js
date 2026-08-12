@@ -354,6 +354,7 @@ function accountReceivableService() {
       inner join BAccount as b on ttapr.CustomerID = b.BAccountID and ttapr.CompanyID = b.CompanyID
       where format(dateadd(day, 7, ttapr.DocDate), 'yyyyMM') = format(getdate(), 'yyyyMM')
         and ttapr.CompanyID = 2
+        and ttapr.Status in (2) -- balanced 
     `;
 
     try {
