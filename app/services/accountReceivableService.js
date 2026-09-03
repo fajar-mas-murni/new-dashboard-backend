@@ -110,13 +110,14 @@ function accountReceivableService() {
   function totalUnpaidCustomers(dt, temp) {
     const customerName = dt["CustomerName"];
     const branch = String(dt["Branch"] || "Unknown");
-    const key = customerName + "|" + branch;
+    const group = String(dt["SalesGroup"] || dt["Group"] || "Unknown");
+    const key = customerName + "|" + branch + "|" + group;
     const amount = parseFloat(dt["BalanceIDR"]) || 0;
 
     if (temp.has(key)) {
       temp.get(key).amount += amount;
     } else {
-      temp.set(key, { customer: customerName, branch, amount });
+      temp.set(key, { customer: customerName, branch, group, amount });
     }
   }
 
@@ -258,8 +259,6 @@ function accountReceivableService() {
         group by AcctName, Branch, GroupCode
       `;
 
-      console.log(query, 123);
-
       const pool = await connectDB();
       const request = await pool.request().query(query);
 
@@ -322,7 +321,7 @@ function accountReceivableService() {
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const period = `${year}${month}`;
         const branch = String(ud["Branch"] || "Unknown");
-        const group = String(ud["GroupCode"] || "Unknown");
+        const group = String(ud["SalesGroup"] || ud["GroupCode"] || "Unknown");
         const customer = String(ud["CustomerName"] || "Unknown");
         const key = period + "|" + branch + "|" + customer;
 
