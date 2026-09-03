@@ -23,6 +23,6 @@ jobs:
       - name: Copy to FMM Finance Dashboard (master branch)
         if: github.ref_name == 'master'
         run: |
-          xcopy "${{ github.workspace }}" "C:\inetpub\wwwroot\new-dashboard\backend" /E /H /C /I /Y
+          xcopy "${{ github.workspace }}" "C:\inetpub\wwwroot\new-dashboard\new-dashboard-backend" /E /H /C /I /Y
 
       - run: echo "🍏 This job's status is ${{ job.status }}."
