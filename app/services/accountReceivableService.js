@@ -68,12 +68,14 @@ function accountReceivableService() {
 
   function summaryData(dt, summaryTemp) {
     const branch = String(dt["Branch"] || "Unknown");
+    const group = String(dt["SalesGroup"] || "Unknown");
     const customer = dt["CustomerName"] || "Unknown";
-    const key = customer + "|" + branch;
+    const key = customer + "|" + branch + "|" + group;
 
     if (!summaryTemp.has(key)) {
       summaryTemp.set(key, {
         branch,
+        group,
         customer,
         "unpaid-invoice": 0,
         "overdue-amount": 0,
@@ -128,7 +130,8 @@ function accountReceivableService() {
     data.forEach(dt => {
       const name = dt["CustomerName"] || "Unknown";
       const branch = String(dt["Branch"] || "Unknown");
-      const key = name + "|" + branch;
+      const group = String(dt["SalesGroup"] || "Unknown");
+      const key = name + "|" + branch + "|" + group;
       const current = parseFloat(dt["Current"] || 0);
       const val1_30 = parseFloat(dt["_130"] || 0);
       const val31_60 = parseFloat(dt["_3160"] || 0);
@@ -151,6 +154,7 @@ function accountReceivableService() {
         customerMap.set(key, {
           customer: name,
           branch: branch,
+          group: group,
           current: current,
           "1-30": val1_30,
           "31-60": val31_60,
@@ -169,6 +173,7 @@ function accountReceivableService() {
     return data.map(dt => ({
       customer: dt["CustomerName"] || "Unknown",
       branch: String(dt["Branch"] || "Unknown"),
+      group: String(dt["SalesGroup"] || "Unknown"),
       number: dt["RefNbr"] || dt["DocumentNo"] || "",
       date: dt["Date"],
       dueDate: dt["DueDate"],
@@ -190,17 +195,37 @@ function accountReceivableService() {
     }
 
     const query = `
-      select b.AcctName, aa.AdjdRefNbr, ap.AdjDate, b2.AcctName as Branch, arr.OrigDocAmt
-      from ARAdjust as aa
-      inner join ARInvoice as ai on aa.AdjdRefNbr = ai.RefNbr and aa.CompanyID = ai.CompanyID 
-      inner join ARRegister arr on ai.RefNbr = arr.RefNbr and ai.CompanyID = arr.CompanyID 
-      inner join ARPayment as ap on aa.AdjgRefNbr = ap.RefNbr and aa.CompanyID = ap.CompanyID
-      inner join baccount as b on aa.CustomerID = b.BAccountID and aa.CompanyID = b.CompanyID
-      inner join baccount b2 on aa.AdjgBranchID = b2.BAccountID 
-      where aa.CompanyID = 2
-        and arr.Status = 'C'
-        and aa.AdjdDocType = 'INV'
-        and ap.DocType = 'PMT'
+      SELECT
+          b.AcctName,
+          aa.AdjdRefNbr,
+          ap.AdjDate,
+          b2.AcctName AS Branch,
+          x.Description AS GroupCode,
+          arr.OrigDocAmt
+      FROM ARAdjust aa
+      INNER JOIN ARInvoice ai ON ai.RefNbr = aa.AdjdRefNbr AND ai.CompanyID = aa.CompanyID
+      CROSS APPLY
+      (
+          SELECT TOP 1
+              s.SubCD,
+              SUBSTRING(
+                  s.[Description],
+                  CHARINDEX(' ', s.[Description]),
+                  CHARINDEX('-', s.[Description]) - CHARINDEX(' ', s.[Description])
+              ) AS Description
+          FROM ARTran art
+          INNER JOIN Sub s ON s.SubID = art.SubID AND s.CompanyID = art.CompanyID
+          WHERE art.RefNbr = ai.RefNbr AND art.CompanyID = 2
+          ORDER BY s.SubCD DESC
+      ) x
+      INNER JOIN ARRegister arr ON arr.RefNbr = ai.RefNbr AND arr.CompanyID = ai.CompanyID
+      INNER JOIN ARPayment ap ON ap.RefNbr = aa.AdjgRefNbr AND ap.CompanyID = aa.CompanyID
+      INNER JOIN BAccount b ON b.BAccountID = aa.CustomerID AND b.CompanyID = aa.CompanyID
+      INNER JOIN BAccount b2 ON b2.BAccountID = aa.AdjgBranchID
+      WHERE aa.CompanyID = 2
+          AND arr.Status = 'C'
+          AND aa.AdjdDocType = 'INV'
+          AND ap.DocType = 'PMT'
         ${ext}
     `;
 
@@ -225,13 +250,15 @@ function accountReceivableService() {
     try {
       const rawQuery = queryPaid();
       const query = `
-        select AcctName as customer, Branch as branch, 
+        select AcctName as customer, Branch as branch, GroupCode as groupCode, 
           sum(case when format(AdjDate, 'yyyyMM') = format(getdate(), 'yyyyMM') then OrigDocAmt else 0 end) as currentMonth, 
           sum(case when format(AdjDate, 'yyyyMM') >= format(dateadd(month, -1, getdate()), 'yyyyMM') then OrigDocAmt else 0 end) as lastMonth, 
           sum(OrigDocAmt) as last12Month
         from (${rawQuery}) as summary
-        group by AcctName, Branch
+        group by AcctName, Branch, GroupCode
       `;
+
+      console.log(query, 123);
 
       const pool = await connectDB();
       const request = await pool.request().query(query);
@@ -239,6 +266,7 @@ function accountReceivableService() {
       return request.recordset.map(row => ({
         customer: row.customer || "Unknown",
         branch: String(row.branch || "Unknown"),
+        group: String(row.groupCode || "Unknown"),
         currentMonth: parseFloat(row.currentMonth || 0),
         lastMonth: parseFloat(row.lastMonth || 0),
         last12Month: parseFloat(row.last12Month || 0)
@@ -260,9 +288,10 @@ function accountReceivableService() {
       const rawQuery = queryPaid(minPeriod, maxPeriod);
 
       const query = `
-        select format(AdjDate, 'yyyyMM') as Period, Branch, AcctName as Customer, sum(OrigDocAmt) as Amount
+        select format(AdjDate, 'yyyyMM') as Period, Branch, 
+          GroupCode, AcctName as Customer, sum(OrigDocAmt) as Amount
         from (${rawQuery}) as summary
-        group by format(AdjDate, 'yyyyMM'), Branch, AcctName
+        group by format(AdjDate, 'yyyyMM'), Branch, GroupCode, AcctName
       `;
       const request = await pool.request().query(query);
       const paidData = request.recordset;
@@ -273,11 +302,12 @@ function accountReceivableService() {
       paidData.forEach(row => {
         const period = row.Period;
         const branch = String(row.Branch || "Unknown");
+        const group = String(row.GroupCode || "Unknown");
         const customer = String(row.Customer || "Unknown");
         const key = period + "|" + branch + "|" + customer;
 
         if (!monthlyMap.has(key)) {
-          monthlyMap.set(key, { period, branch, customer, paid: 0, unpaid: 0 });
+          monthlyMap.set(key, { period, branch, group, customer, paid: 0, unpaid: 0 });
         }
 
         monthlyMap.get(key).paid += parseFloat(row.Amount || 0);
@@ -292,11 +322,12 @@ function accountReceivableService() {
         const month = String(dateObj.getMonth() + 1).padStart(2, '0');
         const period = `${year}${month}`;
         const branch = String(ud["Branch"] || "Unknown");
+        const group = String(ud["GroupCode"] || "Unknown");
         const customer = String(ud["CustomerName"] || "Unknown");
         const key = period + "|" + branch + "|" + customer;
 
         if (!monthlyMap.has(key)) {
-          monthlyMap.set(key, { period, branch, customer, paid: 0, unpaid: 0 });
+          monthlyMap.set(key, { period, branch, group, customer, paid: 0, unpaid: 0 });
         }
 
         monthlyMap.get(key).unpaid += parseFloat(ud["BalanceIDR"] || 0);
