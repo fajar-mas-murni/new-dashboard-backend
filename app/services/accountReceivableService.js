@@ -1,16 +1,17 @@
 const axios_instance = require("../configs/axiosConfig.js");
 const { connectDB } = require("../configs/databaseConfig.js");
+const generalLogger = require("../configs/loggerConfig.js");
+const logger = generalLogger();
 
 function accountReceivableService() {
   const cache = new Map();
 
-  async function getUnpaidData(startDate, endDate) {
+  async function _getArData(endpoint, startDate, endDate) {
     const cacheKey = `${startDate || ''}_${endDate || ''}`;
 
     if (!cache.has(cacheKey)) {
       const promise = (async () => {
         try {
-          const endpoint = "/AR TRADE 180";
           const config = {};
 
           if (startDate && endDate) {
@@ -35,35 +36,37 @@ function accountReceivableService() {
     return cache.get(cacheKey);
   }
 
+  async function getUnpaidData(startDate, endDate) {
+    return (await _getArData("/AR TRADE 180", startDate, endDate)) || [];
+  }
+
   async function getArSummary(startDate, endDate) {
-    const data = await getUnpaidData(startDate, endDate) || [];
+    const arData = await _getArData("/AR TRADE 180", startDate, endDate) || [];
     const result = {
       "summary": [],
       "top-10-unpaid-customers": [],
       "summary-customer": [],
       "summary-unpaid": [],
-      "paid-invoices-summary": [],
       "paid-vs-unpaid-monthly": []
     };
     const summaryTemp = new Map();
     const customerTemp = new Map();
 
-    data.forEach(dt => {
+    arData.forEach(dt => {
       summaryData(dt, summaryTemp);
       totalUnpaidCustomers(dt, customerTemp);
     });
 
     result["summary"] = Array.from(summaryTemp.values());
     result["top-10-unpaid-customers"] = top10UnpaidCustomer(customerTemp);
-    result["summary-customer"] = aggregateCustomers(data);
-    result["summary-unpaid"] = getUnpaidInvoices(data);
-
-    result["paid-invoices-summary"] = await getPaidInvoicesSummary();
-    result["paid-vs-unpaid-monthly"] = await getPaidVsUnpaidMonthly();
-    result["customer-invoices"] = await allInvoicesCustomers(startDate, endDate);
-    result["all-umc-this-month"] = await allUmcThisMonth();
+    result["summary-customer"] = aggregateCustomers(arData);
+    result["summary-unpaid"] = getUnpaidInvoices(arData);
 
     return result;
+  }
+
+  async function getArOtherSummery(startDate, endDate) {
+    const arOtherData = await _getArData("/AR TRADE OTHER 180", startDate, endDate) || [];
   }
 
   function summaryData(dt, summaryTemp) {
@@ -337,6 +340,8 @@ function accountReceivableService() {
 
       return finalMonthly;
     } catch (err) {
+      logger.error("getPaidVsUnpaidMonthly error: " + (err?.message || err));
+      console.error("getPaidVsUnpaidMonthly error:", err?.message || err);
       return [];
     }
   }
@@ -404,7 +409,13 @@ function accountReceivableService() {
     }
   }
 
-  return { getArSummary, sumLastPai12Month, getPaidInvoicesSummary, allUmcThisMonth };
+  return {
+    getArSummary,
+    getPaidInvoicesSummary,
+    getPaidVsUnpaidMonthly,
+    allInvoicesCustomers,
+    allUmcThisMonth
+  };
 }
 
 module.exports = accountReceivableService; 

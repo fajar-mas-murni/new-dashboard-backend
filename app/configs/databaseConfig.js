@@ -18,9 +18,13 @@ function parseDatabaseUrl(url) {
 
     const config = {
         server: server,
+        connectionTimeout: 60000,
+        requestTimeout: 60000,
         options: {
             encrypt: true,
-            trustServerCertificate: true
+            trustServerCertificate: true,
+            requestTimeout: 60000,
+            connectTimeout: 60000
         }
     };
 
