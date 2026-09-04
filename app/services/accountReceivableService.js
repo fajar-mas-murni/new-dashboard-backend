@@ -91,21 +91,16 @@ function accountReceivableService() {
 
     result["unpaid-invoice"] += parseFloat(dt["BalanceIDR"] || 0);
     result["overdue-amount"] += (
-      parseFloat(dt["_130"] || 0) +
-      parseFloat(dt["_3160"] || 0) +
-      parseFloat(dt["_6090"] || 0) +
-      parseFloat(dt["_90180"] || 0) +
-      parseFloat(dt["over180"] || 0)
+      parseFloat(dt["Current"] || 0) * dt["Rate"] +
+      parseFloat(dt["_130"] || 0) * dt["Rate"]
     );
     result["overdue-30-plus"] += (
-      parseFloat(dt["_3160"] || 0) +
-      parseFloat(dt["_6090"] || 0) +
-      parseFloat(dt["_90180"] || 0) +
-      parseFloat(dt["over180"] || 0)
+      parseFloat(dt["_3160"] || 0) * dt["Rate"] +
+      parseFloat(dt["_6090"] || 0) * dt["Rate"]
     );
     result["overdue-90-plus"] += (
-      parseFloat(dt["_90180"] || 0) +
-      parseFloat(dt["over180"] || 0)
+      parseFloat(dt["_90180"] || 0) * dt["Rate"] +
+      parseFloat(dt["over180"] || 0) * dt["Rate"]
     );
   }
 
@@ -136,12 +131,12 @@ function accountReceivableService() {
       const branch = String(dt["Branch"] || "Unknown");
       const group = String(dt["SalesGroup"] || "Unknown");
       const key = name + "|" + branch + "|" + group;
-      const current = parseFloat(dt["Current"] || 0);
-      const val1_30 = parseFloat(dt["_130"] || 0);
-      const val31_60 = parseFloat(dt["_3160"] || 0);
-      const val61_90 = parseFloat(dt["_6090"] || 0);
-      const val91_180 = parseFloat(dt["_90180"] || 0);
-      const val_over180 = parseFloat(dt["over180"] || 0);
+      const current = parseFloat((dt["Current"] * dt["Rate"]) || 0);
+      const val1_30 = parseFloat((dt["_130"] * dt["Rate"]) || 0);
+      const val31_60 = parseFloat((dt["_3160"] * dt["Rate"]) || 0);
+      const val61_90 = parseFloat((dt["_6090"] * dt["Rate"]) || 0);
+      const val91_180 = parseFloat((dt["_90180"] * dt["Rate"]) || 0);
+      const val_over180 = parseFloat((dt["over180"] * dt["Rate"]) || 0);
       const balance = parseFloat(dt["BalanceIDR"] || 0);
 
       if (customerMap.has(key)) {
@@ -234,20 +229,6 @@ function accountReceivableService() {
     `;
 
     return query;
-  }
-
-  async function sumLastPai12Month() {
-    let query = queryPaid();
-    query = `
-      select AcctName, sum(Last12Month) as Last12Month
-      from (${query}) as summary
-      group by AcctName
-    `;
-    const pool = await connectDB();
-    const request = await pool.request().query(query);
-    const result = request.recordsets[0];
-
-    return result;
   }
 
   async function getPaidInvoicesSummary() {
